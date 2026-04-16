@@ -1,0 +1,61 @@
+datasource db {
+  provider = "mongodb"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model User {
+  id            String         @id @default(auto()) @map("_id") @db.ObjectId
+  address       String         @unique
+  createdAt     DateTime       @default(now())
+  botEnabled    Boolean        @default(false)
+  wallet        Wallet?
+  subscriptions Subscription[]
+}
+
+model Wallet {
+  id                   String   @id @default(auto()) @map("_id") @db.ObjectId
+  userId               String   @unique @db.ObjectId
+  user                 User     @relation(fields: [userId], references: [id])
+  address              String   @unique
+  encryptedPrivateKey  String
+  iv                   String
+  createdAt            DateTime @default(now())
+}
+
+enum SubscriptionPlan {
+  starter
+  pro
+  whale
+}
+
+enum SubscriptionStatus {
+  active
+  expired
+  cancelled
+}
+
+model Subscription {
+  id              String             @id @default(auto()) @map("_id") @db.ObjectId
+  userId          String             @db.ObjectId
+  user            User               @relation(fields: [userId], references: [id])
+  plan            SubscriptionPlan
+  status          SubscriptionStatus @default(active)
+  startedAt       DateTime
+  expiresAt       DateTime
+  tradeCount      Int                @default(0)
+  txHash          String             @unique
+  amountUsd       Int
+  token           String
+  chainId         Int
+  fromAddress     String
+  toAddress       String
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
+
+  @@index([userId, status])
+  @@index([userId, expiresAt])
+}
