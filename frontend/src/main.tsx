@@ -10,7 +10,7 @@ import {
   darkTheme,
 } from '@rainbow-me/rainbowkit'
 import { WagmiProvider } from 'wagmi'
-import { polygon } from 'wagmi/chains'
+import { polygonAmoy } from 'wagmi/chains'
 import {
   QueryClientProvider,
   QueryClient,
@@ -19,7 +19,7 @@ import {
 const config = getDefaultConfig({
   appName: 'Polymarket Sniper Bot',
   projectId: 'YOUR_PROJECT_ID', // Replace with your WalletConnect Project ID
-  chains: [polygon],
+  chains: [polygonAmoy],
   ssr: true, // If your dApp uses server side rendering (SSR)
 })
 

@@ -23,7 +23,7 @@ export const SUBSCRIPTION_PLANS = {
 
 export type SubscriptionPlanId = keyof typeof SUBSCRIPTION_PLANS;
 
-const DEFAULT_POLYGON_CHAIN_ID = 137;
+const DEFAULT_POLYGON_CHAIN_ID = 80002;
 const DEFAULT_USDC_DECIMALS = 6;
 
 export const getSubscriptionChainConfig = () => ({

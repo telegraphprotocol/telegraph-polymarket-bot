@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import {
   Shield,
   Activity,
@@ -19,21 +19,22 @@ import {
   X,
   ArrowRight,
   Crown,
-  Check,
-  CreditCard
+  Check
 } from 'lucide-react'
 import { motion } from 'framer-motion'
 import { ConnectButton } from '@rainbow-me/rainbowkit'
-import { useAccount, useBalance, useChainId, useSwitchChain, useDisconnect, useSignMessage } from 'wagmi'
-import { polygon } from 'wagmi/chains'
+import { useAccount, useBalance, useChainId, useSwitchChain, useWalletClient, usePublicClient } from 'wagmi'
+import { erc20Abi, parseUnits } from 'viem'
 import BackgroundAnimation from './components/BackgroundAnimation'
 import api from './utils/api'
 import { useAuth } from './hooks/useAuth'
+import { assertSubscriptionConfig, SUBSCRIPTION_PLANS, subscriptionConfig } from './utils/subscription'
+import type { SubscriptionPlanId } from './utils/subscription'
 import './App.css'
 
 function App() {
-  const USDC_ADDRESS = "0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174"
-  const POLYGON_CHAIN_ID = polygon.id
+  const SUBSCRIPTION_CHAIN_ID = subscriptionConfig.chainId
+  const SUBSCRIPTION_TOKEN_ADDRESS = subscriptionConfig.tokenAddress
 
   const [isTrading, setIsTrading] = useState(false)
   const [lastUpdate, setLastUpdate] = useState(new Date().toLocaleTimeString())
@@ -52,6 +53,7 @@ function App() {
   const [errorMsg, setErrorMsg] = useState('')
   const [currentView, setCurrentView] = useState<'dashboard' | 'subscription'>('dashboard')
   const [hasActiveSubscription, setHasActiveSubscription] = useState(false)
+  const [activePlanId, setActivePlanId] = useState<SubscriptionPlanId | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
   const [searchResults, setSearchResults] = useState<any[]>([])
   const [isSearching, setIsSearching] = useState(false)
@@ -59,10 +61,10 @@ function App() {
   const { address, isConnected } = useAccount()
   const chainId = useChainId()
   const { switchChain, switchChainAsync } = useSwitchChain()
-  const { disconnect } = useDisconnect()
-  const { signMessageAsync } = useSignMessage()
+  const { data: walletClient } = useWalletClient()
+  const publicClient = usePublicClient({ chainId: SUBSCRIPTION_CHAIN_ID })
 
-  const { isLoggedIn, isAuthenticating, user: authUser, login, logout, checkStatus } = useAuth()
+  const { isLoggedIn, isAuthenticating, user: authUser, logout, checkStatus } = useAuth()
 
   const { data: ethBalance } = useBalance({
     address: address,
@@ -75,14 +77,14 @@ function App() {
 
   const { data: usdcBalance } = useBalance({
     address: custodialAddress as `0x${string}`,
-    token: USDC_ADDRESS as `0x${string}`,
-    query: { enabled: !!custodialAddress }
+    token: SUBSCRIPTION_TOKEN_ADDRESS,
+    query: { enabled: !!custodialAddress && !!SUBSCRIPTION_TOKEN_ADDRESS }
   })
 
   const { data: usdcWeb3Balance } = useBalance({
     address: address as `0x${string}`,
-    token: USDC_ADDRESS as `0x${string}`,
-    query: { enabled: !!address }
+    token: SUBSCRIPTION_TOKEN_ADDRESS,
+    query: { enabled: !!address && !!SUBSCRIPTION_TOKEN_ADDRESS }
   })
 
   const copyToClipboard = (text: string) => {
@@ -95,6 +97,11 @@ function App() {
   }
 
   const addTokenToWallet = async () => {
+    if (!SUBSCRIPTION_TOKEN_ADDRESS) {
+      showErrorToast('Subscription token address is not configured')
+      return
+    }
+
     if (window.ethereum) {
       try {
         await window.ethereum.request({
@@ -102,9 +109,9 @@ function App() {
           params: {
             type: 'ERC20',
             options: {
-              address: USDC_ADDRESS,
+              address: SUBSCRIPTION_TOKEN_ADDRESS,
               symbol: 'USDC',
-              decimals: 6,
+              decimals: subscriptionConfig.tokenDecimals,
               image: '/logos/usd-coin-usdc-logo.png',
             },
           },
@@ -114,6 +121,45 @@ function App() {
       }
     }
   }
+
+  const showErrorToast = (message: string) => {
+    setErrorMsg(message)
+    setShowError(true)
+    setTimeout(() => setShowError(false), 2500)
+  }
+
+  const refreshSubscriptionStatus = useCallback(async () => {
+    if (!isLoggedIn) {
+      setHasActiveSubscription(false)
+      setActivePlanId(null)
+      return
+    }
+
+    try {
+      const { data } = await api.get('/subscription/status')
+      const isActive = Boolean(data?.active)
+      setHasActiveSubscription(isActive)
+      setActivePlanId(isActive ? (data.planId as SubscriptionPlanId) : null)
+    } catch (error) {
+      console.error('Subscription status fetch failed:', error)
+      setHasActiveSubscription(false)
+      setActivePlanId(null)
+    }
+  }, [isLoggedIn])
+
+  const refreshBotStatus = useCallback(async () => {
+    if (!isLoggedIn) {
+      setIsTrading(false)
+      return
+    }
+
+    try {
+      const { data } = await api.get('/user/status')
+      setIsTrading(Boolean(data?.botEnabled))
+    } catch (error) {
+      console.error('Bot status fetch failed:', error)
+    }
+  }, [isLoggedIn])
 
   // Simulated activity data
   const activities = [
@@ -137,8 +183,16 @@ function App() {
     } else {
       setHasWallet(false);
       setCustodialAddress('');
+      setHasActiveSubscription(false);
+      setActivePlanId(null);
+      setIsTrading(false);
     }
   }, [isLoggedIn, authUser]);
+
+  useEffect(() => {
+    refreshSubscriptionStatus()
+    refreshBotStatus()
+  }, [refreshSubscriptionStatus, refreshBotStatus])
 
   // Redundant functions removed: initAuth, handleLogin, checkWalletStatus
 
@@ -148,7 +202,7 @@ function App() {
       setLoaderText({ title: 'Generating Custodial Wallet', sub: 'Syncing with Telegraph Subnets...' });
       setIsLoading(true);
 
-      const { data } = await api.post('/wallet/create');
+      await api.post('/wallet/create');
       
       // Refresh global auth status to sync hasWallet and address across the app
       await checkStatus();
@@ -178,13 +232,91 @@ function App() {
       const { data } = await api.get(`/polymarket/search`, {
         params: { q: searchQuery }
       });
-      setSearchResults(data.markets || []);
+      const activeMarkets = (data.markets || []).filter((market: any) => market?.active === true);
+      setSearchResults(activeMarkets.slice(0, 3));
     } catch (error) {
       console.error('Search failed:', error);
     } finally {
       setIsSearching(false);
     }
   };
+
+  const handleBotToggle = async () => {
+    if (!isConnected) return
+    if (!hasActiveSubscription) {
+      showErrorToast('Subscription Required')
+      return
+    }
+
+    try {
+      const { data } = await api.post('/bot/toggle', { enabled: !isTrading })
+      setIsTrading(Boolean(data?.botEnabled))
+    } catch (error: any) {
+      const apiError = error?.response?.data?.error || 'Failed to update bot status'
+      showErrorToast(apiError)
+    }
+  }
+
+  const handleSubscribe = async (planId: SubscriptionPlanId) => {
+    if (!isConnected || !address) {
+      showErrorToast('Connect wallet first')
+      return
+    }
+
+    if (!isLoggedIn) {
+      showErrorToast('Authenticate wallet first')
+      return
+    }
+
+    try {
+      assertSubscriptionConfig()
+    } catch (error: any) {
+      showErrorToast(error.message || 'Subscription env config is missing')
+      return
+    }
+
+    if (!walletClient || !publicClient) {
+      showErrorToast('Wallet client is not ready')
+      return
+    }
+
+    try {
+      if (chainId !== SUBSCRIPTION_CHAIN_ID) {
+        await switchChainAsync({ chainId: SUBSCRIPTION_CHAIN_ID })
+      }
+
+      const selectedPlan = SUBSCRIPTION_PLANS[planId]
+      const amount = parseUnits(selectedPlan.priceUsd.toString(), subscriptionConfig.tokenDecimals)
+
+      setLoaderText({ title: `Paying for ${selectedPlan.label}`, sub: 'Approve token transfer in your wallet...' })
+      setIsLoading(true)
+
+      const txHash = await walletClient.writeContract({
+        address: subscriptionConfig.tokenAddress!,
+        abi: erc20Abi,
+        functionName: 'transfer',
+        args: [subscriptionConfig.treasuryWallet!, amount],
+      })
+
+      setLoaderText({ title: 'Confirming Payment', sub: 'Waiting for chain confirmation...' })
+      await publicClient.waitForTransactionReceipt({ hash: txHash })
+
+      await api.post('/subscription/activate', { planId, txHash })
+      await refreshSubscriptionStatus()
+
+      setSuccessMsg(`${selectedPlan.label} Plan Activated!`)
+      setShowSuccess(true)
+      setTimeout(() => {
+        setShowSuccess(false)
+        setCurrentView('dashboard')
+      }, 2000)
+    } catch (error: any) {
+      const apiError = error?.response?.data?.error
+      showErrorToast(apiError || error?.shortMessage || error?.message || 'Subscription payment failed')
+    } finally {
+      setIsLoading(false)
+    }
+  }
 
   return (
     <div className="app-container">
@@ -217,17 +349,17 @@ function App() {
 
         <div className="nav-right">
           <div className="status-indicator">
-            {isConnected && chainId !== POLYGON_CHAIN_ID && (
+            {isConnected && chainId !== SUBSCRIPTION_CHAIN_ID && (
               <button
                 className="network-switch-btn animate-glow"
-                onClick={() => switchChain({ chainId: POLYGON_CHAIN_ID })}
+                onClick={() => switchChain({ chainId: SUBSCRIPTION_CHAIN_ID })}
               >
                 <AlertCircle size={14} />
-                Switch to Polygon
+                Switch to Amoy
               </button>
             )}
-            <span className={`status-badge ${isTrading && isConnected && chainId === POLYGON_CHAIN_ID ? 'status-active' : 'status-inactive'}`}>
-              {!isConnected ? 'Wallet Required' : chainId !== POLYGON_CHAIN_ID ? 'Wrong Network' : isTrading ? 'Bot Active' : 'Bot Idle'}
+            <span className={`status-badge ${isTrading && isConnected && chainId === SUBSCRIPTION_CHAIN_ID ? 'status-active' : 'status-inactive'}`}>
+              {!isConnected ? 'Wallet Required' : chainId !== SUBSCRIPTION_CHAIN_ID ? 'Wrong Network' : isTrading ? 'Bot Active' : 'Bot Idle'}
             </span>
           </div>
           <ConnectButton
@@ -325,7 +457,7 @@ function App() {
 
                 {searchResults.length > 0 && (
                   <div className="market-results-list">
-                    {searchResults.map((market, idx) => (
+                    {searchResults.slice(0, 3).map((market, idx) => (
                       <motion.a
                         key={idx}
                         href={market.url}
@@ -340,10 +472,10 @@ function App() {
                         <div className="market-stats">
                           <div className="market-stats-row">
                             <div className="market-badge outcome yes">
-                              YES: {market.yesPrice}
+                              YES: {market.yesPrice || 'N/A'}
                             </div>
                             <div className="market-badge outcome no">
-                              NO: {market.noPrice}
+                              NO: {market.noPrice || 'N/A'}
                             </div>
                           </div>
                           <div className="market-stats-row mt-2">
@@ -473,7 +605,11 @@ function App() {
                             <span className="balance-label-small">USDC Balance</span>
                           </div>
                           <div className="token-utilities">
-                            <button className="token-tool-btn" onClick={() => copyToClipboard(USDC_ADDRESS)} title="Copy Address">
+                            <button
+                              className="token-tool-btn"
+                              onClick={() => copyToClipboard(SUBSCRIPTION_TOKEN_ADDRESS || '')}
+                              title="Copy Address"
+                            >
                               <Copy size={14} />
                             </button>
                             <button className="token-tool-btn highlight" onClick={addTokenToWallet} title="Add to Wallet">
@@ -535,16 +671,7 @@ function App() {
                     </div>
                     <button
                       className={`toggle-switch ${isTrading && isConnected ? 'active' : ''}`}
-                      onClick={() => {
-                        if (!isConnected) return;
-                        if (!hasActiveSubscription) {
-                          setErrorMsg('Subscription Required');
-                          setShowError(true);
-                          setTimeout(() => setShowError(false), 2000);
-                          return;
-                        }
-                        setIsTrading(!isTrading);
-                      }}
+                      onClick={handleBotToggle}
                       disabled={!isConnected}
                       style={{ opacity: isConnected ? 1 : 0.5, cursor: isConnected ? 'pointer' : 'not-allowed' }}
                     >
@@ -612,15 +739,10 @@ function App() {
                   <li className="feature-item muted"><X size={18} color="var(--text-dim)" /> Alpha Whale Signals</li>
                 </ul>
                 <button 
-                  className={`subscribe-btn ${hasActiveSubscription ? 'owned' : 'secondary'}`}
-                  onClick={() => {
-                    setHasActiveSubscription(true);
-                    setSuccessMsg('Starter Plan Activated!');
-                    setShowSuccess(true);
-                    setTimeout(() => setShowSuccess(false), 2000);
-                  }}
+                  className={`subscribe-btn ${activePlanId === 'starter' ? 'owned' : 'secondary'}`}
+                  onClick={() => handleSubscribe('starter')}
                 >
-                  {hasActiveSubscription ? 'Current Plan' : 'Subscribe Now'}
+                  {activePlanId === 'starter' ? 'Current Plan' : 'Subscribe Now'}
                 </button>
               </div>
 
@@ -641,17 +763,9 @@ function App() {
                 </ul>
                 <button 
                   className="subscribe-btn primary-btn"
-                  onClick={() => {
-                    setHasActiveSubscription(true);
-                    setSuccessMsg('Pro Plan Activated!');
-                    setShowSuccess(true);
-                    setTimeout(() => {
-                      setShowSuccess(false);
-                      setCurrentView('dashboard');
-                    }, 2000);
-                  }}
+                  onClick={() => handleSubscribe('pro')}
                 >
-                  Go Pro
+                  {activePlanId === 'pro' ? 'Current Plan' : 'Go Pro'}
                 </button>
               </div>
 
@@ -671,14 +785,9 @@ function App() {
                 </ul>
                 <button 
                   className="subscribe-btn secondary"
-                  onClick={() => {
-                    setHasActiveSubscription(true);
-                    setSuccessMsg('Whale Plan Activated!');
-                    setShowSuccess(true);
-                    setTimeout(() => setShowSuccess(false), 2000);
-                  }}
+                  onClick={() => handleSubscribe('whale')}
                 >
-                  Join the Pod
+                  {activePlanId === 'whale' ? 'Current Plan' : 'Join the Pod'}
                 </button>
               </div>
             </div>
@@ -694,7 +803,7 @@ function App() {
           <div className="footer-right">
             <span className="powered-by-footer">Built on the <strong>Telegraph Network</strong></span>
             <div className="footer-dots"></div>
-            <span className="network-status">Network: Polygon Mainnet</span>
+            <span className="network-status">Network: Polygon Amoy</span>
           </div>
         </div>
       </footer>

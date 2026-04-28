@@ -102,7 +102,7 @@ export const activateSubscription = async (
   ]);
 
   if (!tx || !receipt) {
-    throw new SubscriptionError('Transaction was not found on Polygon', 400);
+    throw new SubscriptionError('Transaction was not found on configured subscription chain', 400);
   }
 
   if (receipt.status !== 1) {
@@ -129,7 +129,7 @@ export const activateSubscription = async (
   }
 
   if (tx.chainId !== BigInt(chainConfig.chainId)) {
-    throw new SubscriptionError('Transaction chain does not match configured Polygon chain', 400);
+    throw new SubscriptionError('Transaction chain does not match configured subscription chain', 400);
   }
 
   const now = new Date();

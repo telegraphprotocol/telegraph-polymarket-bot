@@ -1,9 +1,9 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useAccount, useSignMessage, useChainId, useSwitchChain, useDisconnect } from 'wagmi';
-import { polygon } from 'wagmi/chains';
 import api from '../utils/api';
+import { subscriptionConfig } from '../utils/subscription';
 
-const POLYGON_CHAIN_ID = polygon.id;
+const SUBSCRIPTION_CHAIN_ID = subscriptionConfig.chainId;
 
 export const useAuth = () => {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
@@ -40,9 +40,9 @@ export const useAuth = () => {
       setIsAuthenticating(true);
 
       // 1. Ensure correct network
-      if (chainId !== POLYGON_CHAIN_ID) {
+      if (chainId !== SUBSCRIPTION_CHAIN_ID) {
         try {
-          await switchChainAsync({ chainId: POLYGON_CHAIN_ID });
+          await switchChainAsync({ chainId: SUBSCRIPTION_CHAIN_ID });
           // Network switch will trigger a re-render and checkStatus/login loop handled by useEffect
           return;
         } catch (e) {

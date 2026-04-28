@@ -14,6 +14,7 @@ router.get('/health', (req, res) => res.json({ status: 'active', network: 'Polyg
 router.get('/auth/message', authController.getMessage);
 router.post('/auth/verify', authController.verify);
 router.get('/polymarket/search', polymarketController.searchMarkets);
+router.post('/pipeline/test-run', polymarketController.runDecisionPipeline);
 
 // Protected routes
 router.get('/auth/status', authenticate, authController.getStatus);
