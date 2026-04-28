@@ -24,6 +24,7 @@ import {
 import { motion } from 'framer-motion'
 import { ConnectButton } from '@rainbow-me/rainbowkit'
 import { useAccount, useBalance, useChainId, useSwitchChain, useWalletClient, usePublicClient } from 'wagmi'
+import { useDisconnect } from 'wagmi'
 import { erc20Abi, parseUnits } from 'viem'
 import BackgroundAnimation from './components/BackgroundAnimation'
 import api from './utils/api'
@@ -31,6 +32,19 @@ import { useAuth } from './hooks/useAuth'
 import { assertSubscriptionConfig, SUBSCRIPTION_PLANS, subscriptionConfig } from './utils/subscription'
 import type { SubscriptionPlanId } from './utils/subscription'
 import './App.css'
+
+type DecisionHistoryItem = {
+  id: string
+  keyword: string
+  marketTitle: string
+  action: 'buy' | 'wait'
+  token: 'YES' | 'NO' | null
+  likelihood: number
+  reason: string
+  liquidity: string
+  volume: string
+  createdAt: string
+}
 
 function App() {
   const SUBSCRIPTION_CHAIN_ID = subscriptionConfig.chainId
@@ -57,8 +71,16 @@ function App() {
   const [searchQuery, setSearchQuery] = useState('')
   const [searchResults, setSearchResults] = useState<any[]>([])
   const [isSearching, setIsSearching] = useState(false)
+  const [decisionHistory, setDecisionHistory] = useState<DecisionHistoryItem[]>([])
+  const [decisionHistoryLoading, setDecisionHistoryLoading] = useState(false)
+  const [decisionHistoryError, setDecisionHistoryError] = useState('')
+  const [decisionHistoryPage, setDecisionHistoryPage] = useState(1)
+  const [decisionHistoryLimit] = useState(10)
+  const [decisionHistoryTotalPages, setDecisionHistoryTotalPages] = useState(1)
+  const [decisionHistorySortDir, setDecisionHistorySortDir] = useState<'asc' | 'desc'>('desc')
 
   const { address, isConnected } = useAccount()
+  const { disconnect } = useDisconnect()
   const chainId = useChainId()
   const { switchChain, switchChainAsync } = useSwitchChain()
   const { data: walletClient } = useWalletClient()
@@ -161,6 +183,37 @@ function App() {
     }
   }, [isLoggedIn])
 
+  const refreshDecisionHistory = useCallback(async () => {
+    if (!isLoggedIn) {
+      setDecisionHistory([])
+      setDecisionHistoryError('')
+      setDecisionHistoryTotalPages(1)
+      return
+    }
+
+    try {
+      setDecisionHistoryLoading(true)
+      setDecisionHistoryError('')
+      const { data } = await api.get('/pipeline/history', {
+        params: {
+          page: decisionHistoryPage,
+          limit: decisionHistoryLimit,
+          sortBy: 'createdAt',
+          sortDir: decisionHistorySortDir,
+        },
+      })
+      setDecisionHistory(Array.isArray(data?.items) ? data.items : [])
+      setDecisionHistoryTotalPages(Math.max(1, Number(data?.totalPages) || 1))
+    } catch (error: any) {
+      console.error('Decision history fetch failed:', error)
+      const apiError = error?.response?.data?.error || 'Failed to load decision history'
+      setDecisionHistoryError(apiError)
+      setDecisionHistory([])
+    } finally {
+      setDecisionHistoryLoading(false)
+    }
+  }, [decisionHistoryLimit, decisionHistoryPage, decisionHistorySortDir, isLoggedIn])
+
   // Simulated activity data
   const activities = [
     { id: 1, type: 'ALERT', title: 'Strait of Hormuz', description: 'Real-time verification signal detected via Telegraph Subnet.', time: '2m ago', impact: 'High' },
@@ -186,6 +239,7 @@ function App() {
       setHasActiveSubscription(false);
       setActivePlanId(null);
       setIsTrading(false);
+      setDecisionHistoryPage(1);
     }
   }, [isLoggedIn, authUser]);
 
@@ -193,6 +247,10 @@ function App() {
     refreshSubscriptionStatus()
     refreshBotStatus()
   }, [refreshSubscriptionStatus, refreshBotStatus])
+
+  useEffect(() => {
+    refreshDecisionHistory()
+  }, [refreshDecisionHistory])
 
   // Redundant functions removed: initAuth, handleLogin, checkWalletStatus
 
@@ -362,11 +420,22 @@ function App() {
               {!isConnected ? 'Wallet Required' : chainId !== SUBSCRIPTION_CHAIN_ID ? 'Wrong Network' : isTrading ? 'Bot Active' : 'Bot Idle'}
             </span>
           </div>
-          <ConnectButton
-            accountStatus="address"
-            showBalance={false}
-            chainStatus="none"
-          />
+          {isConnected ? (
+            <>
+              <button className="wallet-state-btn">
+                Connected: {address ? `${address.slice(0, 6)}...${address.slice(-4)}` : 'Wallet'}
+              </button>
+              <button className="disconnect-wallet-btn" onClick={() => disconnect()}>
+                Disconnect
+              </button>
+            </>
+          ) : (
+            <ConnectButton
+              accountStatus="address"
+              showBalance={false}
+              chainStatus="none"
+            />
+          )}
           {isLoggedIn && (
             <button className="icon-btn logout-btn" onClick={logout} title="Logout">
               <span className="text-xs mr-2">Logout</span>
@@ -544,6 +613,90 @@ function App() {
                 <button className="primary-btn mt-4">
                   Manual Verification Scan
                 </button>
+              </div>
+
+              <div className="card glass">
+                <div className="card-header">
+                  <div className="card-title">
+                    <Activity size={20} color="var(--primary-color)" />
+                    Decision History
+                  </div>
+                  <button
+                    className="history-sort-btn"
+                    onClick={() => setDecisionHistorySortDir((prev) => (prev === 'desc' ? 'asc' : 'desc'))}
+                  >
+                    Time: {decisionHistorySortDir === 'desc' ? 'Newest' : 'Oldest'}
+                  </button>
+                </div>
+
+                {decisionHistoryError && (
+                  <div className="history-status history-error">{decisionHistoryError}</div>
+                )}
+                {decisionHistoryLoading && (
+                  <div className="history-status">Loading decision history...</div>
+                )}
+                {!decisionHistoryLoading && !decisionHistoryError && decisionHistory.length === 0 && (
+                  <div className="history-status">No decisions yet. Run the pipeline to populate history.</div>
+                )}
+
+                {!decisionHistoryLoading && decisionHistory.length > 0 && (
+                  <div className="history-table-wrap">
+                    <table className="history-table">
+                      <thead>
+                        <tr>
+                          <th>Time</th>
+                          <th>Keyword</th>
+                          <th>Market</th>
+                          <th>Action</th>
+                          <th>Token</th>
+                          <th>Likelihood</th>
+                          <th>Reason</th>
+                          <th>Liq/Vol</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {decisionHistory.map((item) => (
+                          <tr key={item.id}>
+                            <td>{new Date(item.createdAt).toLocaleString()}</td>
+                            <td>{item.keyword}</td>
+                            <td>{item.marketTitle}</td>
+                            <td>
+                              <span className={`history-action ${item.action}`}>{item.action.toUpperCase()}</span>
+                            </td>
+                            <td>{item.token || '-'}</td>
+                            <td>{Math.round((item.likelihood || 0) * 100)}%</td>
+                            <td title={item.reason}>{item.reason}</td>
+                            <td>{item.liquidity} / {item.volume}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+
+                <div className="history-pagination">
+                  <button
+                    className="history-page-btn"
+                    onClick={() => setDecisionHistoryPage((prev) => Math.max(1, prev - 1))}
+                    disabled={decisionHistoryPage <= 1}
+                  >
+                    Prev
+                  </button>
+                  <span>
+                    Page {decisionHistoryPage} / {decisionHistoryTotalPages}
+                  </span>
+                  <button
+                    className="history-page-btn"
+                    onClick={() =>
+                      setDecisionHistoryPage((prev) =>
+                        Math.min(decisionHistoryTotalPages, prev + 1)
+                      )
+                    }
+                    disabled={decisionHistoryPage >= decisionHistoryTotalPages}
+                  >
+                    Next
+                  </button>
+                </div>
               </div>
             </div>
 

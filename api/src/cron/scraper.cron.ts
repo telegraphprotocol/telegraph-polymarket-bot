@@ -11,7 +11,7 @@ export const initScraperCron = () => {
   cron.schedule('0 */2 * * *', async () => {
     console.log(`[${new Date().toISOString()}] 🤖 Running Telegraph decision pipeline...`);
     try {
-      const result = await MarketDecisionService.runDecisionPipelineOnce();
+      const result = await MarketDecisionService.runDecisionPipelineOnce('cron');
       const rateLimitedCount = result.decisions.filter((item) => item.diagnostics?.rateLimitEncountered).length;
       const totalRetries = result.decisions.reduce(
         (sum, item) => sum + (item.diagnostics?.retriesAttempted || 0),
@@ -33,7 +33,7 @@ export const initScraperCron = () => {
  */
 export const runManualScrape = async () => {
   console.log('🚀 Triggering manual Telegraph decision run...');
-  const result = await MarketDecisionService.runDecisionPipelineOnce();
+  const result = await MarketDecisionService.runDecisionPipelineOnce('manual');
   console.log(
     `Manual run complete | analyzed=${result.counts.marketsAnalyzed} buy=${result.counts.buy} wait=${result.counts.wait}`
   );

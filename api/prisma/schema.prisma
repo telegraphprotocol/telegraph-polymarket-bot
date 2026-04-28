@@ -59,3 +59,53 @@ model Subscription {
   @@index([userId, status])
   @@index([userId, expiresAt])
 }
+
+model DecisionRun {
+  id              String     @id @default(auto()) @map("_id") @db.ObjectId
+  startedAt       DateTime
+  completedAt     DateTime?
+  trigger         String
+  keywords        String[]
+  marketsAnalyzed Int        @default(0)
+  skippedInactive Int        @default(0)
+  buyCount        Int        @default(0)
+  waitCount       Int        @default(0)
+  contextSummary  String?
+  decisions       Decision[]
+  createdAt       DateTime   @default(now())
+  updatedAt       DateTime   @updatedAt
+
+  @@index([createdAt])
+  @@index([startedAt])
+}
+
+model Decision {
+  id                   String      @id @default(auto()) @map("_id") @db.ObjectId
+  runId                String      @db.ObjectId
+  run                  DecisionRun @relation(fields: [runId], references: [id])
+  keyword              String
+  marketTitle          String
+  marketSlug           String
+  marketUrl            String
+  marketActive         Boolean
+  yesPrice             String
+  noPrice              String
+  liquidity            String
+  volume               String
+  action               String
+  token                String?
+  likelihood           Float
+  reason               String
+  relatedNews          Json
+  newsFetched          Boolean
+  retriesAttempted     Int
+  rateLimitEncountered Boolean
+  delayAppliedMs       Int
+  warning              String?
+  createdAt            DateTime    @default(now())
+
+  @@index([runId])
+  @@index([createdAt])
+  @@index([action, createdAt])
+  @@index([keyword, createdAt])
+}

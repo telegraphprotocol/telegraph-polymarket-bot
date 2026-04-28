@@ -62,7 +62,7 @@ export default function Header() {
             asChild
             className="hidden sm:inline-flex bg-[#8b5cf6] text-white px-6 py-2 rounded-lg hover:bg-[#7c3aed] hover:scale-105 transition-all duration-200 shadow-[0_0_20px_rgba(139,92,246,0.3)]"
           >
-            <Link href="https://app.polysniper.com/">Launch App</Link>
+            <Link href="http://localhost:5173/">Launch App</Link>
           </Button>
 
           <Sheet>
@@ -92,7 +92,7 @@ export default function Header() {
                   asChild
                   className="mt-6 w-full rounded-lg bg-[#8b5cf6] text-white hover:bg-[#7c3aed] hover:scale-105 transition-all duration-200"
                 >
-                  <Link href="https://app.polysniper.com/">Launch App</Link>
+                  <Link href="http://localhost:5173/">Launch App</Link>
                 </Button>
            
               </nav>

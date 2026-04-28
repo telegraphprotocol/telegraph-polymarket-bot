@@ -558,6 +558,31 @@
   background: var(--surface-hover);
 }
 
+.wallet-state-btn {
+  background: rgba(16, 185, 129, 0.12);
+  border: 1px solid rgba(16, 185, 129, 0.35);
+  color: var(--success);
+  padding: 8px 12px;
+  border-radius: 8px;
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+.disconnect-wallet-btn {
+  background: rgba(239, 68, 68, 0.12);
+  border: 1px solid rgba(239, 68, 68, 0.35);
+  color: var(--error);
+  padding: 8px 12px;
+  border-radius: 8px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  transition: all 0.2s ease;
+}
+
+.disconnect-wallet-btn:hover {
+  background: rgba(239, 68, 68, 0.2);
+}
+
 /* Token Info Row */
 .token-info-row {
   display: flex;
@@ -1525,6 +1550,100 @@
   border-radius: 12px;
   border: 1px dashed var(--glass-border);
   margin-top: 20px;
+}
+
+.history-sort-btn {
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--glass-border);
+  color: var(--text-muted);
+  font-size: 0.75rem;
+  font-weight: 600;
+  border-radius: 8px;
+  padding: 8px 12px;
+}
+
+.history-table-wrap {
+  overflow-x: auto;
+}
+
+.history-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.75rem;
+}
+
+.history-table th,
+.history-table td {
+  text-align: left;
+  padding: 10px 8px;
+  border-bottom: 1px solid var(--border-color);
+  max-width: 220px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.history-table th {
+  color: var(--text-muted);
+  text-transform: uppercase;
+  font-size: 0.65rem;
+  letter-spacing: 0.04em;
+}
+
+.history-action {
+  font-size: 0.65rem;
+  font-weight: 700;
+  border-radius: 999px;
+  padding: 4px 8px;
+}
+
+.history-action.buy {
+  background: rgba(16, 185, 129, 0.15);
+  color: var(--success);
+}
+
+.history-action.wait {
+  background: rgba(148, 163, 184, 0.15);
+  color: var(--text-muted);
+}
+
+.history-status {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  padding: 12px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--glass-border);
+}
+
+.history-status.history-error {
+  color: var(--error);
+  border-color: rgba(239, 68, 68, 0.35);
+  background: rgba(239, 68, 68, 0.08);
+}
+
+.history-pagination {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 12px;
+  margin-top: 8px;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+.history-page-btn {
+  padding: 6px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--glass-border);
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text-main);
+  font-size: 0.75rem;
+}
+
+.history-page-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
 }
 
 .loader-spin {

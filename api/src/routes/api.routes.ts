@@ -22,6 +22,7 @@ router.get('/user/status', authenticate, userController.getStatus);
 router.post('/wallet/create', authenticate, walletController.createWallet);
 router.post('/subscription/activate', authenticate, subscriptionController.activate);
 router.get('/subscription/status', authenticate, subscriptionController.status);
+router.get('/pipeline/history', authenticate, polymarketController.getDecisionHistory);
 router.post('/bot/toggle', authenticate, (req, res, next) => {
   if (req.body?.enabled === true) {
     return requireActiveSubscription(req, res, next);

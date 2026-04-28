@@ -2,6 +2,7 @@ import { MARKET_MONITOR_CONFIG } from '../config/market-monitor.config';
 import { PolymarketService } from './polymarket.service';
 import { RelatedNewsItem, sleep, TelegraphNewsService } from './telegraph-news.service';
 import { LlmDecision, TelegraphLlmService } from './telegraph-llm.service';
+import prisma from '../utils/prisma';
 
 interface MarketSummary {
   title: string;
@@ -45,8 +46,16 @@ export interface PipelineRunResult {
 const marketKey = (market: MarketSummary) => market.slug || market.title.toLowerCase();
 
 export class MarketDecisionService {
-  static async runDecisionPipelineOnce(): Promise<PipelineRunResult> {
+  static async runDecisionPipelineOnce(trigger: 'cron' | 'manual' = 'manual'): Promise<PipelineRunResult> {
     const startedAt = new Date().toISOString();
+    const runRecord = await prisma.decisionRun.create({
+      data: {
+        startedAt: new Date(startedAt),
+        trigger,
+        keywords: MARKET_MONITOR_CONFIG.keywords,
+      },
+    });
+
     const marketMap = new Map<string, { keyword: string; market: MarketSummary }>();
     let skippedInactive = 0;
 
@@ -85,7 +94,7 @@ export class MarketDecisionService {
         relatedNews,
       });
 
-      decisions.push({
+      const decisionItem: DecisionItem = {
         keyword: item.keyword,
         market: item.market,
         relatedNews,
@@ -96,6 +105,33 @@ export class MarketDecisionService {
           rateLimitEncountered: newsResult.meta.rateLimitEncountered,
           delayAppliedMs,
           warning: relatedNews.length === 0 ? 'No related news found for this market' : undefined,
+        },
+      };
+
+      decisions.push(decisionItem);
+
+      await prisma.decision.create({
+        data: {
+          runId: runRecord.id,
+          keyword: decisionItem.keyword,
+          marketTitle: decisionItem.market.title,
+          marketSlug: decisionItem.market.slug,
+          marketUrl: decisionItem.market.url,
+          marketActive: decisionItem.market.active,
+          yesPrice: decisionItem.market.yesPrice,
+          noPrice: decisionItem.market.noPrice,
+          liquidity: decisionItem.market.liquidity,
+          volume: decisionItem.market.volume,
+          action: decisionItem.decision.action,
+          token: decisionItem.decision.token,
+          likelihood: decisionItem.decision.likelihood,
+          reason: decisionItem.decision.reason,
+          relatedNews: decisionItem.relatedNews as unknown as object,
+          newsFetched: Boolean(decisionItem.diagnostics?.newsFetched),
+          retriesAttempted: decisionItem.diagnostics?.retriesAttempted ?? 0,
+          rateLimitEncountered: Boolean(decisionItem.diagnostics?.rateLimitEncountered),
+          delayAppliedMs: decisionItem.diagnostics?.delayAppliedMs ?? 0,
+          warning: decisionItem.diagnostics?.warning,
         },
       });
     }
@@ -115,9 +151,23 @@ export class MarketDecisionService {
       `News was fetched per market with a 10 second delay between requests.`,
     ].join(' ');
 
+    const completedAt = new Date().toISOString();
+
+    await prisma.decisionRun.update({
+      where: { id: runRecord.id },
+      data: {
+        completedAt: new Date(completedAt),
+        marketsAnalyzed: counts.marketsAnalyzed,
+        skippedInactive: counts.skippedInactive,
+        buyCount: counts.buy,
+        waitCount: counts.wait,
+        contextSummary,
+      },
+    });
+
     return {
       startedAt,
-      completedAt: new Date().toISOString(),
+      completedAt,
       keywords: MARKET_MONITOR_CONFIG.keywords,
       counts,
       decisions,

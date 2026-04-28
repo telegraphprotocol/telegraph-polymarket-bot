@@ -29,7 +29,7 @@ export default function CallToActionSection() {
             asChild
             className="inline-flex text-lg h-14 px-10 bg-[#8b5cf6] hover:bg-[#7c3aed] text-white transition-all duration-300 shadow-[0_0_30px_rgba(139,92,246,0.2)] rounded-2xl"
           >
-            <Link href="https://app.polysniper.com/">Launch Sniper Now</Link>
+            <Link href="http://localhost:5173/">Launch Sniper Now</Link>
           </Button>
           <Button
             asChild

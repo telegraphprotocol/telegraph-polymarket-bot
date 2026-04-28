@@ -109,7 +109,7 @@ export default function HeroSection() {
               >
                 <Link
                   className="inline-flex items-center justify-center px-6 py-3 rounded-lg bg-primary text-white hover:bg-primary/90 transition-colors"
-                  href="https://monetai.monadai.xyz/"
+                  href="http://localhost:5173/"
                 >
                   Launch App
                 </Link>
