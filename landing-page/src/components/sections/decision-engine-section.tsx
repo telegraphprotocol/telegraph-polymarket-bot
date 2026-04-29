@@ -1,6 +1,6 @@
 "use client";
 
-import { Brain, ShieldCheck, Zap, LucideIcon, Globe, FileCheck } from "lucide-react";
+import { ShieldCheck, Zap, LucideIcon, Globe, FileCheck } from "lucide-react";
 import React from "react";
 
 interface Decision {
@@ -33,7 +33,7 @@ export default function DecisionEngineSection() {
             <span className="text-[#8b5cf6]">Intelligence</span>
           </h2>
           <p className="text-lg sm:text-xl text-gray-400 max-w-md">
-            Sniper Bot doesn't just read the market—it verifies it. By layering DeSearch news with Telegraph ground-truth data, we provide a mathematical edge in high-stakes prediction.
+            Sniper Bot doesn&apos;t just read the market-it verifies it. By layering DeSearch news with Telegraph ground-truth data, we provide a mathematical edge in high-stakes prediction.
           </p>
           <div className="pt-6">
              <div className="flex items-center gap-3 text-white font-semibold">

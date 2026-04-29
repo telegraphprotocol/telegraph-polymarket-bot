@@ -2,7 +2,7 @@
 
 import React from "react";
 import Image from "next/image";
-import { ShieldCheck, Radar, Search, BarChart3 } from "lucide-react";
+import { ShieldCheck, Radar, Search } from "lucide-react";
 
 interface Partner {
   src?: string;

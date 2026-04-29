@@ -1,9 +1,12 @@
 import type { Metadata } from "next";
 
-// @ts-ignore
-if (typeof global !== 'undefined' && global.localStorage && !global.localStorage.getItem) {
-  // @ts-ignore
-  delete global.localStorage;
+const runtimeGlobal = globalThis as typeof globalThis & {
+  localStorage?: { getItem?: unknown };
+};
+const runtimeGlobalMutable = runtimeGlobal as { localStorage?: { getItem?: unknown } };
+
+if (runtimeGlobal.localStorage && !runtimeGlobal.localStorage.getItem) {
+  delete runtimeGlobalMutable.localStorage;
 }
 import { Orbitron, Space_Grotesk } from "next/font/google";
 import { Providers } from "@/providers";
